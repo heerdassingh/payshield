@@ -1,0 +1,65 @@
+*.class
+*.log
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iws
+*.iml
+*.ipr
+.settings/
+.project
+.classpath
+.factorypath
+.springBeans
+*.launch
+.sts4-cache
+.vscode/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+ENV/
+.env
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.pytest_cache/
+
+# ML Models
+ml-service/models/*.joblib
+ml-service/models/*.pkl
+
+# Docker
+.docker/
+
+# Kafka Streams
+/tmp/kafka-streams/
+
+# OS
+.DS_Store
+Thumbs.db

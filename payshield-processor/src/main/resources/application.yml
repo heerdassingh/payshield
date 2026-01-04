@@ -1,0 +1,76 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: payshield-processor
+
+  # Kafka Configuration
+  kafka:
+    bootstrap-servers: localhost:9093
+    consumer:
+      group-id: payshield-processor
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+
+  # MySQL Configuration (Master User Data)
+  datasource:
+    url: jdbc:mysql://localhost:3307/payshield?useSSL=false&allowPublicKeyRetrieval=true
+    username: payshield
+    password: payshield_secret
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+
+  # MongoDB Configuration (Transaction Storage)
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/payshield
+
+  # Redis Configuration (Caching)
+  redis:
+    host: localhost
+    port: 6379
+
+# PayShield Configuration
+payshield:
+  kafka:
+    topics:
+      incoming: incoming-transactions
+      validated: validated-transactions
+      processed: processed-transactions
+      fraud-alerts: fraud-alerts
+      user-not-found: user-not-found
+
+  fraud:
+    threshold: 0.7
+    high-risk-threshold: 0.5
+
+  retry:
+    max-retries: 5
+    interval-ms: 60000  # 1 minute
+
+# Actuator & Monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+# Logging
+logging:
+  level:
+    com.payshield: DEBUG
+    org.springframework.kafka: INFO
+    org.hibernate.SQL: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

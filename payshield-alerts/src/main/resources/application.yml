@@ -1,0 +1,46 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: payshield-alerts
+
+  # Kafka Configuration
+  kafka:
+    bootstrap-servers: localhost:9093
+    consumer:
+      group-id: payshield-alerts
+      auto-offset-reset: earliest
+
+  # MongoDB Configuration
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/payshield
+
+# PayShield Configuration
+payshield:
+  kafka:
+    topics:
+      fraud-alerts: fraud-alerts
+      user-not-found: user-not-found
+
+  notifications:
+    enabled: true
+
+# Actuator & Monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+# Logging
+logging:
+  level:
+    com.payshield: DEBUG
+    org.springframework.kafka: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

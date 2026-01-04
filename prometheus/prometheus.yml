@@ -1,0 +1,34 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # PayShield API Gateway
+  - job_name: 'payshield-api'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'api'
+
+  # PayShield Processor
+  - job_name: 'payshield-processor'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8081']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'processor'
+
+  # PayShield Alerts
+  - job_name: 'payshield-alerts'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8082']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'alerts'
