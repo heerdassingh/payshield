@@ -120,6 +120,36 @@ services:
       retries: 5
 
   # ============================================
+  # AI SERVICE (Python FastAPI)
+  # ============================================
+  payshield-ai:
+    build:
+      context: ./payshield-ai
+      dockerfile: Dockerfile
+    container_name: payshield-ai
+    ports:
+      - "8000:8000"
+    environment:
+      PAYSHIELD_AI_MONGODB_URI: mongodb://mongodb:27017/payshield
+      PAYSHIELD_AI_REDIS_HOST: redis
+      PAYSHIELD_AI_CHROMA_PERSIST_DIR: /app/chroma_data
+      PAYSHIELD_AI_DEBUG: "false"
+    volumes:
+      - ai-model-data:/app/chroma_data
+      - ai-saved-models:/app/app/models/saved_model
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ============================================
   # MONITORING STACK
   # ============================================
   prometheus:
@@ -172,6 +202,8 @@ volumes:
   redis-data:
   prometheus-data:
   grafana-data:
+  ai-model-data:
+  ai-saved-models:
 
 
 networks:

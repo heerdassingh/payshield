@@ -1,0 +1,22 @@
+Account Takeover (ATO) Fraud
+
+Account Takeover fraud occurs when a fraudster gains unauthorized access to a legitimate user's account and conducts unauthorized transactions.
+
+Key Indicators:
+- Login from a new device or unusual location
+- Rapid change of account settings (email, phone, password)
+- Unusually high transaction amounts immediately after account changes
+- Multiple transactions to previously unknown merchants
+- Transactions that max out daily or monthly limits
+
+Behavioral Anomalies:
+- Transaction velocity spike: more than 5 transactions per hour for a user who typically makes 1-2 per day
+- Amount anomaly: transactions 3x or more above the user's average
+- Time anomaly: transactions at hours when the user has never been active
+- Geographic anomaly: transactions from locations far from user's typical area
+
+Prevention Measures:
+- Multi-factor authentication enforcement
+- Session monitoring and anomaly detection
+- Device binding and trust scoring
+- Behavioral biometrics analysis

@@ -1,43 +1,51 @@
-# PayShield - Transaction Processing System
+# PayShield — AI-Powered Payment Fraud Detection
 
-A production-grade, real-time transaction processing system with AI-powered fraud detection, built with Java Spring Boot, Kafka, MySQL, MongoDB, and Redis.
+A production-grade, real-time payment fraud detection system with **Python AI (TensorFlow Autoencoder + RAG)**, built with Java Spring Boot, Kafka, MySQL, MongoDB, Redis, and a **React.js** dashboard.
 
 ## Architecture
 
 ```
-┌──────────────┐     ┌─────────────┐     ┌──────────────────┐     ┌──────────────┐
-│   REST API   │────▶│   Kafka     │────▶│  User Validator  │────▶│   Kafka      │
-│  (port 8080) │     │ (incoming)  │     │   (MySQL)        │     │ (validated)  │
-└──────────────┘     └─────────────┘     └──────────────────┘     └──────────────┘
-                                                                         │
-                     ┌─────────────┐     ┌──────────────────┐           │
-                     │   Alerts    │◀────│  AI Fraud Det.   │◀──────────┘
-                     │  (port 8082)│     │  (Java ML)       │
-                     └─────────────┘     └──────────────────┘
-                                                │
-                     ┌─────────────┐     ┌──────▼──────┐
-                     │  MongoDB    │◀────│  Processor  │
-                     │ (records)   │     │  (port 8081)│
-                     └─────────────┘     └─────────────┘
+┌──────────────────┐     ┌─────────────┐     ┌──────────────────┐     ┌──────────────┐
+│  React Dashboard │     │   REST API  │────▶│   Kafka          │────▶│   Processor  │
+│  (port 3001)     │────▶│  (port 8080)│     │ (incoming topic) │     │  (port 8081) │
+└──────────────────┘     └─────────────┘     └──────────────────┘     └──────────────┘
+                                                                             │
+                          ┌─────────────┐     ┌──────────────────┐          │
+                          │   Alerts    │◀────│  Python AI       │◀─────────┘
+                          │  (port 8082)│     │  (port 8000)     │
+                          └─────────────┘     │  TF Autoencoder  │
+                                              │  + RAG Pipeline  │
+                                              └──────────────────┘
+                                                     │
+                          ┌─────────────┐     ┌──────▼──────┐
+                          │  MongoDB    │◀────│  Processor  │
+                          │ (records)   │     │  (port 8081)│
+                          └─────────────┘     └─────────────┘
 ```
 
 ## Tech Stack
 
-- **Backend**: Spring Boot 3.2 (Java 17)
-- **Messaging**: Apache Kafka
-- **AI/ML**: Java ML (Smile library)
-- **Databases**: MySQL (users), MongoDB (transactions)
-- **Caching**: Redis
-- **Monitoring**: Prometheus + Grafana
+| Layer | Technology |
+|-------|-----------|
+| **Backend** | Java 17, Spring Boot 3.2 |
+| **Messaging** | Apache Kafka |
+| **AI/ML** | Python FastAPI, TensorFlow (Deep Autoencoder) |
+| **RAG Pipeline** | LangChain, ChromaDB, HuggingFace Embeddings |
+| **Databases** | MySQL (users/merchants), MongoDB (transactions/alerts) |
+| **Caching** | Redis |
+| **Frontend** | React.js, Recharts, Vite |
+| **Monitoring** | Docker, Prometheus, Grafana |
 
 ## Modules
 
 | Module | Port | Description |
 |--------|------|-------------|
-| payshield-api | 8080 | REST API Gateway - publishes to Kafka |
-| payshield-processor | 8081 | Transaction processor with fraud detection |
+| payshield-api | 8080 | REST API Gateway — publishes to Kafka, serves dashboard APIs |
+| payshield-processor | 8081 | Transaction processor — calls Python AI for fraud detection |
 | payshield-alerts | 8082 | Alert consumer and notifications |
-| payshield-common | - | Shared models, DTOs, repositories |
+| payshield-ai | 8000 | Python AI — TensorFlow Autoencoder model + RAG pipeline |
+| payshield-dashboard | 3001 | React.js frontend dashboard |
+| payshield-common | — | Shared models, DTOs, repositories |
 
 ## Quick Start
 
@@ -46,27 +54,43 @@ A production-grade, real-time transaction processing system with AI-powered frau
 docker-compose up -d
 ```
 
-### 2. Build the Project
+### 2. Build the Java Project
 ```bash
 mvn clean install -DskipTests
 ```
 
-### 3. Start Services (in separate terminals)
+### 3. Start Python AI Service (standalone mode)
+```bash
+cd payshield-ai
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
 
-**Terminal 1 - API:**
+### 4. Start Spring Boot Services (in separate terminals)
+
+**Terminal 1 — API:**
 ```bash
 mvn spring-boot:run -pl payshield-api
 ```
 
-**Terminal 2 - Processor:**
+**Terminal 2 — Processor:**
 ```bash
 mvn spring-boot:run -pl payshield-processor
 ```
 
-**Terminal 3 - Alerts:**
+**Terminal 3 — Alerts:**
 ```bash
 mvn spring-boot:run -pl payshield-alerts
 ```
+
+### 5. Start React Dashboard
+```bash
+cd payshield-dashboard
+npm install
+npm run dev
+```
+
+Open **http://localhost:3001** to view the dashboard.
 
 ## API Endpoints
 
@@ -87,9 +111,52 @@ curl -X POST http://localhost:8080/api/v1/transactions \
 curl http://localhost:8080/api/v1/transactions/{transactionId}/status
 ```
 
-### Get User Transactions
+### Dashboard APIs
 ```bash
-curl http://localhost:8080/api/v1/transactions/user/{userId}
+# Get stats
+curl http://localhost:8080/api/v1/dashboard/stats
+
+# Recent transactions
+curl http://localhost:8080/api/v1/dashboard/recent-transactions?limit=20
+
+# Fraud trends
+curl http://localhost:8080/api/v1/dashboard/fraud-trends
+
+# Active alerts
+curl http://localhost:8080/api/v1/dashboard/alerts
+
+# AI model status
+curl http://localhost:8080/api/v1/dashboard/ai-status
+```
+
+### Python AI APIs
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Model status
+curl http://localhost:8000/api/v1/model/status
+
+# Direct fraud prediction
+curl -X POST http://localhost:8000/api/v1/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transaction_id": "test-001",
+    "user_id": "user-001",
+    "merchant_id": "merch-001",
+    "amount": 5000,
+    "amount_normalized": 0.5,
+    "frequency_1h": 0.3,
+    "frequency_24h": 0.2,
+    "time_anomaly": 0.0,
+    "high_amount_flag": 0.3,
+    "velocity": 0.0
+  }'
+
+# RAG query
+curl -X POST http://localhost:8000/api/v1/rag/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What are velocity-based fraud patterns?"}'
 ```
 
 ## Kafka Topics
@@ -106,7 +173,9 @@ curl http://localhost:8080/api/v1/transactions/user/{userId}
 
 | Service | URL |
 |---------|-----|
+| React Dashboard | http://localhost:3001 |
 | Swagger UI | http://localhost:8080/swagger-ui.html |
+| Python AI Docs | http://localhost:8000/docs |
 | Kafka UI | http://localhost:8090 |
 | Grafana | http://localhost:3000 (admin/payshield) |
 | Prometheus | http://localhost:9090 |
@@ -130,16 +199,26 @@ curl http://localhost:8080/api/v1/transactions/user/{userId}
 
 ## Fraud Detection Features
 
-The AI fraud detection analyzes:
-- Transaction amount (normalized)
-- Transaction frequency (hourly/daily)
-- Time of day anomaly
-- Amount deviation from normal
-- High velocity patterns
+The Python AI service analyzes these features using a **TensorFlow Deep Autoencoder**:
+
+| Feature | Description | Weight |
+|---------|-------------|--------|
+| amount_normalized | Transaction amount relative to max (0-1) | High |
+| frequency_1h | Transactions in last hour vs threshold | High |
+| frequency_24h | Transactions in last 24h vs threshold | Medium |
+| time_anomaly | Late-night transaction indicator (1-5 AM) | Medium |
+| high_amount_flag | Amount exceeding $1K/$5K thresholds | Medium |
+| velocity | Rapid transaction rate indicator | Medium |
+
+### RAG Pipeline
+The RAG (Retrieval-Augmented Generation) pipeline provides **explainable AI** by:
+1. Loading fraud pattern documents into ChromaDB vector store
+2. For each prediction, retrieving relevant fraud knowledge
+3. Generating contextual explanations alongside the ML score
 
 ## Retry Mechanism
 
 Failed transactions are automatically retried with exponential backoff:
-- Retry interval: 2^retryCount * 60 seconds
+- Retry interval: 2^retryCount × 60 seconds
 - Maximum retries: 5
 - Status tracked in `failed_transactions` collection

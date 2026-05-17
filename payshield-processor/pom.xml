@@ -24,7 +24,7 @@
         <!-- Spring Boot -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter</artifactId>
+            <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
         <!-- Kafka -->
@@ -55,12 +55,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
-        </dependency>
-
-        <!-- Smile ML Library for Java-based AI -->
-        <dependency>
-            <groupId>com.github.haifengl</groupId>
-            <artifactId>smile-core</artifactId>
         </dependency>
 
         <!-- Monitoring -->

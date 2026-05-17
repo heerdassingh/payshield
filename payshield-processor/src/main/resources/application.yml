@@ -48,6 +48,11 @@ payshield:
       fraud-alerts: fraud-alerts
       user-not-found: user-not-found
 
+  ai:
+    service-url: http://localhost:8000
+    connect-timeout: 5000
+    read-timeout: 10000
+
   fraud:
     threshold: 0.7
     high-risk-threshold: 0.5

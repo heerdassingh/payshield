@@ -7,48 +7,56 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import jakarta.annotation.PostConstruct;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
 
 /**
- * AI Fraud Detection Service using Java ML (Isolation Forest simulation)
+ * AI Fraud Detection Service — calls Python AI microservice (Isolation Forest + RAG)
  * 
- * Features used for fraud detection:
+ * Features extracted in Java and sent to Python for ML prediction:
  * - Amount normalized (transaction amount / user average)
  * - Transaction frequency in last hour
  * - Transaction frequency in last 24 hours
- * - Is new recipient/merchant
  * - Time of day anomaly
- * - Amount deviation from normal
+ * - High amount flag
+ * - Velocity detection
+ * 
+ * Falls back to rule-based scoring if Python AI service is unavailable.
  */
 @Service
 @Slf4j
 public class FraudDetectionService {
 
     private final TransactionRecordRepository transactionRecordRepository;
+    private final RestTemplate aiRestTemplate;
     private final Counter fraudDetectedCounter;
     private final Counter transactionsCheckedCounter;
+    private final Counter aiServiceFallbackCounter;
     private final Timer fraudCheckTimer;
 
+    @Value("${payshield.ai.service-url:http://localhost:8000}")
+    private String aiServiceUrl;
+
     // Thresholds
-    private static final double FRAUD_THRESHOLD = 0.7;  // Score above this = fraud
+    private static final double FRAUD_THRESHOLD = 0.7;
     private static final double HIGH_RISK_THRESHOLD = 0.5;
     private static final int MAX_TRANSACTIONS_PER_HOUR = 10;
     private static final int MAX_TRANSACTIONS_PER_DAY = 50;
 
-    // Simulated model (in production, load trained model)
-    private final Random random = new Random();
-
     public FraudDetectionService(
             TransactionRecordRepository transactionRecordRepository,
+            @Qualifier("aiRestTemplate") RestTemplate aiRestTemplate,
             MeterRegistry meterRegistry) {
         this.transactionRecordRepository = transactionRecordRepository;
+        this.aiRestTemplate = aiRestTemplate;
 
         this.fraudDetectedCounter = Counter.builder("fraud.detected")
                 .description("Number of fraud cases detected")
@@ -58,6 +66,10 @@ public class FraudDetectionService {
                 .description("Number of transactions checked for fraud")
                 .register(meterRegistry);
 
+        this.aiServiceFallbackCounter = Counter.builder("fraud.ai.fallback")
+                .description("Number of times fallback scoring was used")
+                .register(meterRegistry);
+
         this.fraudCheckTimer = Timer.builder("fraud.check.duration")
                 .description("Time to perform fraud check")
                 .register(meterRegistry);
@@ -65,23 +77,52 @@ public class FraudDetectionService {
 
     @PostConstruct
     public void init() {
-        log.info("Fraud Detection Service initialized with Java ML (Isolation Forest simulation)");
+        log.info("Fraud Detection Service initialized — Python AI endpoint: {}", aiServiceUrl);
         log.info("Fraud threshold: {}, High-risk threshold: {}", FRAUD_THRESHOLD, HIGH_RISK_THRESHOLD);
     }
 
     /**
-     * Perform AI-based fraud detection on a transaction
+     * Perform AI-based fraud detection on a transaction.
+     * Extracts features in Java, sends to Python AI microservice for prediction.
      */
     public TransactionEvent detectFraud(TransactionEvent event) {
         return fraudCheckTimer.record(() -> {
             transactionsCheckedCounter.increment();
 
             // Extract features
-            Map<String, Double> features = extractFeatures(event);
-            event.setFraudFeatures(features);
+            Map<String, Object> features = extractFeatures(event);
+            Map<String, Double> featureScores = new HashMap<>();
+            features.forEach((k, v) -> {
+                if (v instanceof Number) {
+                    featureScores.put(k, ((Number) v).doubleValue());
+                }
+            });
+            event.setFraudFeatures(featureScores);
 
-            // Calculate fraud score using Isolation Forest-like logic
-            double fraudScore = calculateFraudScore(features, event);
+            // Call Python AI service
+            double fraudScore;
+            String fraudReason;
+            try {
+                Map<String, Object> prediction = callPythonAI(features);
+                fraudScore = ((Number) prediction.getOrDefault("fraud_score", 0.0)).doubleValue();
+                fraudReason = (String) prediction.getOrDefault("fraud_reason", "AI model prediction");
+                
+                // Add RAG explanation if available
+                String ragExplanation = (String) prediction.get("rag_explanation");
+                if (ragExplanation != null && !ragExplanation.isEmpty()) {
+                    fraudReason = fraudReason + " | " + ragExplanation;
+                }
+                
+                log.info("Python AI prediction: transactionId={}, score={}, reason={}",
+                        event.getTransactionId(), fraudScore, prediction.get("fraud_reason"));
+                        
+            } catch (Exception e) {
+                log.warn("Python AI service unavailable, using fallback scoring: {}", e.getMessage());
+                aiServiceFallbackCounter.increment();
+                fraudScore = calculateFallbackScore(featureScores);
+                fraudReason = determineFallbackReason(featureScores, fraudScore);
+            }
+
             event.setFraudScore(fraudScore);
 
             // Determine if fraudulent
@@ -90,12 +131,13 @@ public class FraudDetectionService {
 
             if (isFraudulent) {
                 fraudDetectedCounter.increment();
-                event.setFraudReason(determineFraudReason(features, fraudScore));
+                event.setFraudReason(fraudReason);
                 event.setEventType(TransactionEvent.EventType.FRAUD_DETECTED);
                 event.setStage("FRAUD_DETECTED");
                 log.warn("FRAUD DETECTED: transactionId={}, score={}, reason={}",
-                        event.getTransactionId(), fraudScore, event.getFraudReason());
+                        event.getTransactionId(), fraudScore, fraudReason);
             } else {
+                event.setFraudReason(fraudReason);
                 event.setEventType(TransactionEvent.EventType.FRAUD_CHECKED);
                 event.setStage("FRAUD_CLEARED");
                 log.info("Transaction cleared: transactionId={}, fraudScore={}",
@@ -107,16 +149,40 @@ public class FraudDetectionService {
     }
 
     /**
+     * Call the Python AI microservice for fraud prediction
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> callPythonAI(Map<String, Object> features) {
+        String predictUrl = aiServiceUrl + "/api/v1/predict";
+        
+        Map<String, Object> response = aiRestTemplate.postForObject(
+                predictUrl, features, Map.class);
+        
+        if (response == null) {
+            throw new RuntimeException("Empty response from AI service");
+        }
+        
+        return response;
+    }
+
+    /**
      * Extract features for ML model
      */
-    private Map<String, Double> extractFeatures(TransactionEvent event) {
-        Map<String, Double> features = new HashMap<>();
+    private Map<String, Object> extractFeatures(TransactionEvent event) {
+        Map<String, Object> features = new HashMap<>();
         String userId = event.getUserId();
         Instant now = Instant.now();
 
-        // Feature 1: Amount normalized (0-1 scale, higher = more unusual)
+        // Transaction metadata for Python service
+        features.put("transaction_id", event.getTransactionId());
+        features.put("user_id", event.getUserId());
+        features.put("merchant_id", event.getMerchantId());
+        features.put("amount", event.getAmount().doubleValue());
+        features.put("currency", event.getCurrency());
+
+        // Feature 1: Amount normalized (0-1 scale)
         double amount = event.getAmount().doubleValue();
-        double amountNormalized = Math.min(1.0, amount / 10000.0); // Normalize to 10k max
+        double amountNormalized = Math.min(1.0, amount / 10000.0);
         features.put("amount_normalized", amountNormalized);
 
         // Feature 2: Transaction frequency in last hour
@@ -133,7 +199,7 @@ public class FraudDetectionService {
 
         // Feature 4: Time anomaly (transactions at unusual hours)
         int hour = java.time.LocalTime.now().getHour();
-        double timeAnomaly = (hour >= 1 && hour <= 5) ? 0.8 : 0.0; // Late night = suspicious
+        double timeAnomaly = (hour >= 1 && hour <= 5) ? 0.8 : 0.0;
         features.put("time_anomaly", timeAnomaly);
 
         // Feature 5: High amount flag
@@ -144,19 +210,22 @@ public class FraudDetectionService {
         double velocity = frequencyHour > 0.5 ? 0.7 : 0.0;
         features.put("velocity", velocity);
 
+        // Optional context
+        if (event.getDeviceId() != null) features.put("device_id", event.getDeviceId());
+        if (event.getIpAddress() != null) features.put("ip_address", event.getIpAddress());
+        if (event.getLatitude() != null) features.put("latitude", event.getLatitude());
+        if (event.getLongitude() != null) features.put("longitude", event.getLongitude());
+
         log.debug("Extracted features for transactionId={}: {}", event.getTransactionId(), features);
         return features;
     }
 
     /**
-     * Calculate fraud score using Isolation Forest-like algorithm
-     * In production, this would use a trained Smile ML model
+     * Fallback: calculate fraud score locally when Python AI is unavailable
      */
-    private double calculateFraudScore(Map<String, Double> features, TransactionEvent event) {
-        // Weighted combination of features (simulating Isolation Forest anomaly score)
+    private double calculateFallbackScore(Map<String, Double> features) {
         double score = 0.0;
 
-        // Weight each feature
         score += features.getOrDefault("amount_normalized", 0.0) * 0.25;
         score += features.getOrDefault("frequency_1h", 0.0) * 0.20;
         score += features.getOrDefault("frequency_24h", 0.0) * 0.15;
@@ -164,18 +233,14 @@ public class FraudDetectionService {
         score += features.getOrDefault("high_amount_flag", 0.0) * 0.15;
         score += features.getOrDefault("velocity", 0.0) * 0.10;
 
-        // Add small random noise (simulating model uncertainty)
-        score += (random.nextDouble() * 0.1) - 0.05;
-
-        // Clamp to [0, 1]
         return Math.max(0.0, Math.min(1.0, score));
     }
 
     /**
-     * Determine the reason for fraud detection
+     * Fallback: determine fraud reason locally
      */
-    private String determineFraudReason(Map<String, Double> features, double score) {
-        StringBuilder reason = new StringBuilder();
+    private String determineFallbackReason(Map<String, Double> features, double score) {
+        StringBuilder reason = new StringBuilder("[Fallback] ");
 
         if (features.getOrDefault("velocity", 0.0) > 0.5) {
             reason.append("High velocity transactions detected. ");
@@ -190,7 +255,7 @@ public class FraudDetectionService {
             reason.append("Too many transactions in short period. ");
         }
 
-        if (reason.length() == 0) {
+        if (reason.length() <= 11) {
             reason.append("Multiple anomaly indicators combined.");
         }
 

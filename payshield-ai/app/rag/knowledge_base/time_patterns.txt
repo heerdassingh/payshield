@@ -1,0 +1,29 @@
+Time-Based Fraud Patterns
+
+Fraudulent transactions often exhibit temporal anomalies that distinguish them from legitimate activity.
+
+Suspicious Time Windows:
+- Late night transactions (1 AM - 5 AM local time): 80% anomaly score
+- Transactions during user's historically inactive hours
+- Transactions that occur at times inconsistent with the merchant's operating hours
+
+Time-Based Features:
+- time_anomaly: Binary/continuous score based on transaction hour
+  - Hours 1-5: Score 0.8 (high anomaly)
+  - Hours 6-23: Score 0.0 (normal)
+- Day-of-week patterns: Weekend vs weekday spending patterns
+- Holiday anomalies: Unusual activity during holidays
+
+Temporal Velocity:
+- Multiple transactions within 1 minute: likely automated
+- Transactions every 5-10 minutes for an extended period: pattern suggests compromise
+- Transaction clusters followed by long gaps: test-then-exploit pattern
+
+Geographic-Temporal Impossibility:
+- Transactions in two distant locations within an impossible travel time
+- Example: Transaction in New York at 2 PM, then Tokyo at 2:30 PM (physically impossible)
+
+Seasonal Patterns:
+- Holiday season: Higher baseline for false positives
+- Tax season: Unusual high-value transactions may be legitimate
+- Back-to-school: Increased e-commerce activity

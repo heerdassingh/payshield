@@ -1,0 +1,22 @@
+Card Not Present (CNP) Fraud
+
+Card Not Present fraud occurs when stolen card details are used for online or phone transactions where the physical card is not required. This is one of the most common types of payment fraud.
+
+Key Indicators:
+- Multiple transactions from different geographic locations in a short time
+- Transactions at unusual hours (between 1 AM and 5 AM)
+- Sudden spike in transaction frequency for a user
+- High-value transactions to new merchants
+- Mismatched billing and shipping addresses
+
+Risk Factors:
+- New account (less than 30 days old)
+- First-time transaction with a high-risk merchant category
+- Transaction amount significantly above user's historical average
+- Multiple failed authentication attempts before successful transaction
+
+Mitigation Strategies:
+- Real-time velocity checks on transaction frequency
+- Device fingerprinting to detect new or suspicious devices
+- 3D Secure authentication for high-risk transactions
+- Address Verification System (AVS) checks

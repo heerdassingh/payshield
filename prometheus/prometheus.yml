@@ -32,3 +32,13 @@ scrape_configs:
       - source_labels: [__address__]
         target_label: instance
         replacement: 'alerts'
+
+  # PayShield AI Service (Python FastAPI)
+  - job_name: 'payshield-ai'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['host.docker.internal:8000']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'ai-service'
